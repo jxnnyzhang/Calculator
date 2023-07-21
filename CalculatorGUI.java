@@ -8,8 +8,8 @@ public class CalculatorGUI extends JFrame implements ActionListener {
 
     private JTextField displayField;
     private StringBuilder inputExpression;
-    
-
+    private int cursorPosition;
+    private SimpleAttributeSet cursorAttribute;
 
     public CalculatorGUI() {
         setTitle("Calculator");
@@ -19,10 +19,12 @@ public class CalculatorGUI extends JFrame implements ActionListener {
 
         displayField = new JTextField();
         displayField.setEditable(false);
+        displayField.setSize(5, 5);
         add(displayField, BorderLayout.NORTH);
 
-        String[] buttonLabels = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "/", "*", "-", ".", "=", "+", "(",")","'","sin", "cos", "log", "exp", "clear"};
-        JPanel buttonPanel = new JPanel(new GridLayout(6, 4));
+        String[] buttonLabels = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "x", "y", "/", "*", "-", ".", "=",
+                "+", "(", ")", "'", "sin", "cos", "log", "^", "√", "clear", "<-", "->", "delete"};
+        JPanel buttonPanel = new JPanel(new GridLayout(7, 4));
 
         for (String label : buttonLabels) {
             JButton button = new JButton(label);
@@ -37,59 +39,62 @@ public class CalculatorGUI extends JFrame implements ActionListener {
         setVisible(true);
 
         inputExpression = new StringBuilder();
+        cursorPosition = 0;
+        cursorAttribute = new SimpleAttributeSet();
+        StyleConstants.setForeground(cursorAttribute, Color.RED);
     }
 
-@Override
-public void actionPerformed(ActionEvent e) {
-    String command = e.getActionCommand();
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        String command = e.getActionCommand();
 
-    // Handle button clicks here
-    if (command.equals("=")) {
-        evaluateExpression();
-    } else if (command.equals("clear")) {
-        handleClearButton();
-    } else if (command.equals("sin")) {
-        handleSpecialFunction("sin");
-    } else if (command.equals("cos")) {
-        handleSpecialFunction("cos");
-    } else if (command.equals("log")) {
-        handleSpecialFunction("log");
-    } else if (command.equals("exp")) {
-        handleSpecialFunction("exp");
-    } else {
-        inputExpression.append(command);
-        displayField.setText(inputExpression.toString());
-    }
-}
-
-private void evaluateExpression() {
-    String expression = inputExpression.toString();
-
-    try {
-        // Check for apostrophes to determine whether to compute the derivative
-        if (expression.contains("'")) {
-            expression = expression.replace("'", ""); // Remove the apostrophes from the expression
-            Function resultFunction = parseExpression(expression);
-            Function derivative = resultFunction.derivative();
-            double result = derivative.value(); // Compute the derivative value
-            displayField.setText("Derivative: " + result);
-        } else if (expression.contains("''")) {
-            expression = expression.replace("''", ""); // Remove the double apostrophes from the expression
-            Function resultFunction = parseExpression(expression);
-            Function derivative = resultFunction.derivative().derivative();
-            double result = derivative.value(); // Compute the second derivative value
-            displayField.setText("Second Derivative: " + result);
+        if (command.equals("=")) {
+            evaluateExpression();
+        } else if (command.equals("clear")) {
+            handleClearButton();
+        } else if (command.equals("sin") || command.equals("cos") || command.equals("log") || command.equals("^") || command.equals("√")) {
+            handleSpecialFunction(command);
+        } else if (command.equals("<-")) {
+            // Handle backspace arrow
+            handleBackspace();
+        } else if (command.equals("->")) {
+            handleForward();
+        } else if (command.equals("delete")) {
+            // Handle delete button
+            handleDelete();
         } else {
-            Function resultFunction = parseExpression(expression);
-            double result = resultFunction.value();
-            displayField.setText("Result: " + result);
+            if (inputExpression.length() > 0) {
+                inputExpression.insert(cursorPosition, command);
+                cursorPosition++;
+                updateDisplay();
+            } else {
+                inputExpression.append(command);
+                cursorPosition++;
+                updateDisplay();
+            }
         }
-    } catch (Exception e) {
-        displayField.setText("Error");
     }
 
-    inputExpression.setLength(0);
-}
+    private void evaluateExpression() {
+        String expression = inputExpression.toString();
+
+        if (containsVariable(expression)) {
+            if (containsDerivative(expression)) {
+                calculateDerivative(expression);
+            } else if (containsSecondDerivative(expression)) {
+                calculateSecondDerivative(expression);
+            }
+        } else {
+            try {
+                Function resultFunction = parseExpression(expression);
+                double result = resultFunction.value();
+                displayField.setText("Result: " + result);
+            } catch (IllegalArgumentException e) {
+                displayField.setText("Error: " + e.getMessage());
+            }
+        }
+    }
+
 
 private Function parseExpression(String expression) throws IllegalArgumentException {
     expression = expression.replaceAll("\\s+", ""); // Remove whitespace from the expression
